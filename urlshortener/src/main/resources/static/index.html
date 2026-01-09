@@ -25,21 +25,23 @@
     <script>
         async function shorten() {
             const url = document.getElementById('urlInput').value;
-            const res = await fetch('/shorten', {
+            const res = await fetch('shorten', {
                 method: 'POST',
-                headers: { 'Content-Type': 'text/plain' }, // Plain text fix
+                headers: { 'Content-Type': 'text/plain' },
                 body: url
             });
             const code = await res.text();
             document.getElementById('result').style.display = 'block';
-            // Uses current window location so it works on localhost AND public web
+
+            // If at .../projects/urlshortener/, this adds the code to the end.
+            const currentPath = window.location.href.replace(/\/$/, ""); // remove trailing slash if exists
             document.getElementById('result').innerHTML = 
-                `Short Link: <a href="/${code}" target="_blank">${window.location.origin}/${code}</a>`;
+                `Short Link: <a href="${currentPath}/${code}" target="_blank">${currentPath}/${code}</a>`;
         }
 
         async function checkStats() {
             const code = document.getElementById('codeInput').value;
-            const res = await fetch(`/stats/${code}`);
+            const res = await fetch(`stats/${code}`);
             if (res.ok) {
                 const data = await res.json();
                 document.getElementById('stats').style.display = 'block';

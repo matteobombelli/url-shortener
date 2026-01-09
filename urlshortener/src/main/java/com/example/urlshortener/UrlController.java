@@ -2,17 +2,22 @@ package com.example.urlshortener;
 
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.redis.core.StringRedisTemplate; // Import Redis
 import java.net.URI;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @RestController
 public class UrlController {
 
     private final UrlRepository repository;
+    private final StringRedisTemplate redis; // Redis Connector
     private static final String BASE62 = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-    public UrlController(UrlRepository repository) {
+    // Constructor Injection for both Repo and Redis
+    public UrlController(UrlRepository repository, StringRedisTemplate redis) {
         this.repository = repository;
+        this.redis = redis;
     }
 
     // 1. Create Short URL
@@ -23,21 +28,35 @@ public class UrlController {
         return encode(saved.getId());
     }
 
-    // 2. Redirect (With Analytics)
-    @GetMapping("/{shortCode}")
+    // 2. Redirect (With Redis Caching)
+    @GetMapping("/{shortCode:[a-zA-Z0-9]+}")
     public ResponseEntity<Void> redirect(@PathVariable String shortCode) {
+        // A. Check Redis First (Fast!)
+        String cachedUrl = redis.opsForValue().get(shortCode);
+        
+        if (cachedUrl != null) {
+            // Found in cache! Redirect immediately (and async update clicks if you wanted)
+            return ResponseEntity.status(302).location(URI.create(cachedUrl)).build();
+        }
+
+        // B. Not in Cache? Check Database (Slower)
         Long id = decode(shortCode);
         return repository.findById(id)
                 .map(url -> {
+                    // C. Save to Redis for next time (Expire in 10 minutes)
+                    redis.opsForValue().set(shortCode, url.getOriginalUrl(), 10, TimeUnit.MINUTES);
+                    
+                    // Update stats (DB write still happens)
                     url.setClicks(url.getClicks() + 1);
                     repository.save(url);
+                    
                     return ResponseEntity.status(302).location(URI.create(url.getOriginalUrl())).<Void>build();
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // 3. Stats (FIXED: Added Type Hint <String, Object>)
-    @GetMapping("/stats/{shortCode}")
+    // 3. Stats
+    @GetMapping("/stats/{shortCode:[a-zA-Z0-9]+}")
     public ResponseEntity<Map<String, Object>> getStats(@PathVariable String shortCode) {
         Long id = decode(shortCode);
         return repository.findById(id)
