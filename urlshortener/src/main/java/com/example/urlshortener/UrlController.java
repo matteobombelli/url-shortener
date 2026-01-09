@@ -28,25 +28,33 @@ public class UrlController {
         return encode(saved.getId());
     }
 
-    // 2. Redirect (With Redis Caching)
+    // 2. Redirect (Fixed: Updates analytics even on Cache Hit)
     @GetMapping("/{shortCode:[a-zA-Z0-9]+}")
     public ResponseEntity<Void> redirect(@PathVariable String shortCode) {
-        // A. Check Redis First (Fast!)
+        // Decode first so we have the ID ready
+        Long id = decode(shortCode);
+
+        // A. Check Redis
         String cachedUrl = redis.opsForValue().get(shortCode);
-        
+
         if (cachedUrl != null) {
-            // Found in cache! Redirect immediately (and async update clicks if you wanted)
+            // FIX: Increment click count in background (Fire and Forget)
+            // We don't want the user to wait for the DB write
+            java.util.concurrent.CompletableFuture.runAsync(() -> {
+                repository.findById(id).ifPresent(url -> {
+                    url.setClicks(url.getClicks() + 1);
+                    repository.save(url);
+                });
+            });
+
             return ResponseEntity.status(302).location(URI.create(cachedUrl)).build();
         }
 
-        // B. Not in Cache? Check Database (Slower)
-        Long id = decode(shortCode);
+        // B. Database Fallback
         return repository.findById(id)
                 .map(url -> {
-                    // C. Save to Redis for next time (Expire in 10 minutes)
                     redis.opsForValue().set(shortCode, url.getOriginalUrl(), 10, TimeUnit.MINUTES);
                     
-                    // Update stats (DB write still happens)
                     url.setClicks(url.getClicks() + 1);
                     repository.save(url);
                     

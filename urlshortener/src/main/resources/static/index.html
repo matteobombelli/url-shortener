@@ -18,37 +18,74 @@
     <hr style="margin: 30px 0;">
 
     <h2>Analytics</h2>
-    <input type="text" id="codeInput" placeholder="Enter Short Code (e.g., 1)">
+    <input type="text" id="codeInput" placeholder="Enter Short URL (e.g., matteob.dev/.../b) or just the code">
     <button onclick="checkStats()">Check Stats</button>
     <div id="stats" class="stats"></div>
 
     <script>
         async function shorten() {
-            const url = document.getElementById('urlInput').value;
+            const urlInput = document.getElementById('urlInput');
+            const url = urlInput.value.trim();
+
+            // 1. Validate Input
+            if (!url) {
+                alert("Please enter a URL.");
+                return;
+            }
+            try {
+                new URL(url); // Checks if it looks like a real link (http://...)
+            } catch (_) {
+                alert("Invalid URL. Make sure to include http:// or https://");
+                return;
+            }
+
             const res = await fetch('shorten', {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
                 body: url
             });
+
+            if (!res.ok) {
+                alert("Server Error: Could not shorten link.");
+                return;
+            }
+
             const code = await res.text();
             document.getElementById('result').style.display = 'block';
-
-            // If at .../projects/urlshortener/, this adds the code to the end.
-            const currentPath = window.location.href.replace(/\/$/, ""); // remove trailing slash if exists
+            
+            const currentPath = window.location.href.replace(/\/$/, ""); 
             document.getElementById('result').innerHTML = 
                 `Short Link: <a href="${currentPath}/${code}" target="_blank">${currentPath}/${code}</a>`;
         }
 
         async function checkStats() {
-            const code = document.getElementById('codeInput').value;
+            let input = document.getElementById('codeInput').value.trim();
+            
+            if (!input) {
+                alert("Please enter a link or code.");
+                return;
+            }
+
+            // Extract code if a full URL is pasted
+            if (input.includes("/")) {
+                if (input.endsWith("/")) {
+                    input = input.slice(0, -1);
+                }
+                input = input.split("/").pop();
+            }
+
+            const code = input; 
+
             const res = await fetch(`stats/${code}`);
             if (res.ok) {
                 const data = await res.json();
                 document.getElementById('stats').style.display = 'block';
                 document.getElementById('stats').innerHTML = 
-                    `<strong>Original:</strong> ${data.originalUrl}<br><strong>Clicks:</strong> ${data.clicks}`;
+                    `<strong>Original:</strong> <a href="${data.originalUrl}" target="_blank">${data.originalUrl}</a><br>
+                     <strong>Clicks:</strong> ${data.clicks}`;
             } else {
-                alert("Code not found!");
+                // 3. Fixed Error Text
+                alert("Link not found! (Check your URL)");
             }
         }
     </script>
