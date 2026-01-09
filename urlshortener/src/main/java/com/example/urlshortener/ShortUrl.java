@@ -14,6 +14,11 @@ public class ShortUrl {
 
     // Constructors, Getters, and Setters
     public ShortUrl() {}
+    // Click counter
+    private int clicks = 0;
+
+    public int getClicks() { return clicks; }
+    public void setClicks(int clicks) { this.clicks = clicks; }
 
     public ShortUrl(String originalUrl) {
         this.originalUrl = originalUrl;

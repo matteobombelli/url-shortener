@@ -3,6 +3,7 @@ package com.example.urlshortener;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.ResponseEntity;
 import java.net.URI;
+import java.util.Map;
 
 @RestController
 public class UrlController {
@@ -14,7 +15,7 @@ public class UrlController {
         this.repository = repository;
     }
 
-    // Create a short URL
+    // 1. Create Short URL
     @PostMapping("/shorten")
     public String shortenUrl(@RequestBody String originalUrl) {
         ShortUrl url = new ShortUrl(originalUrl);
@@ -22,16 +23,32 @@ public class UrlController {
         return encode(saved.getId());
     }
 
-    // Redirect to original URL
+    // 2. Redirect (With Analytics)
     @GetMapping("/{shortCode}")
     public ResponseEntity<Void> redirect(@PathVariable String shortCode) {
         Long id = decode(shortCode);
         return repository.findById(id)
-                .map(url -> ResponseEntity.status(302).location(URI.create(url.getOriginalUrl())).<Void>build())
+                .map(url -> {
+                    url.setClicks(url.getClicks() + 1);
+                    repository.save(url);
+                    return ResponseEntity.status(302).location(URI.create(url.getOriginalUrl())).<Void>build();
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // --- Base62 Helpers ---
+    // 3. Stats (FIXED: Added Type Hint <String, Object>)
+    @GetMapping("/stats/{shortCode}")
+    public ResponseEntity<Map<String, Object>> getStats(@PathVariable String shortCode) {
+        Long id = decode(shortCode);
+        return repository.findById(id)
+                .map(url -> ResponseEntity.ok(Map.<String, Object>of(
+                        "originalUrl", url.getOriginalUrl(),
+                        "clicks", url.getClicks()
+                )))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // --- Helpers ---
     private String encode(long value) {
         StringBuilder sb = new StringBuilder();
         if (value == 0) return String.valueOf(BASE62.charAt(0));

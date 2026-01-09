@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>URL Shortener</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
+        input, button { padding: 10px; margin-top: 10px; width: 100%; box-sizing: border-box; }
+        .result, .stats { margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 5px; display: none; }
+    </style>
+</head>
+<body>
+    <h1>Link Shortener</h1>
+    
+    <input type="text" id="urlInput" placeholder="Enter long URL (e.g., https://google.com)">
+    <button onclick="shorten()">Shorten It</button>
+    <div id="result" class="result"></div>
+
+    <hr style="margin: 30px 0;">
+
+    <h2>Analytics</h2>
+    <input type="text" id="codeInput" placeholder="Enter Short Code (e.g., 1)">
+    <button onclick="checkStats()">Check Stats</button>
+    <div id="stats" class="stats"></div>
+
+    <script>
+        async function shorten() {
+            const url = document.getElementById('urlInput').value;
+            const res = await fetch('/shorten', {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' }, // Plain text fix
+                body: url
+            });
+            const code = await res.text();
+            document.getElementById('result').style.display = 'block';
+            // Uses current window location so it works on localhost AND public web
+            document.getElementById('result').innerHTML = 
+                `Short Link: <a href="/${code}" target="_blank">${window.location.origin}/${code}</a>`;
+        }
+
+        async function checkStats() {
+            const code = document.getElementById('codeInput').value;
+            const res = await fetch(`/stats/${code}`);
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('stats').style.display = 'block';
+                document.getElementById('stats').innerHTML = 
+                    `<strong>Original:</strong> ${data.originalUrl}<br><strong>Clicks:</strong> ${data.clicks}`;
+            } else {
+                alert("Code not found!");
+            }
+        }
+    </script>
+</body>
+</html>
